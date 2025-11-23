@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>小小建筑师 - 3D积木</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #e0f7fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            display: block;
+        }
+
+        /* 顶部标题 */
+        #header {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            pointer-events: none;
+            user-select: none;
+            z-index: 5;
+        }
+
+        h1 {
+            margin: 0;
+            color: #0277bd;
+            font-size: 28px;
+            text-shadow: 2px 2px 0px white;
+            letter-spacing: 2px;
+        }
+
+        p {
+            margin: 8px 0 0 0;
+            color: #455a64;
+            font-size: 14px;
+            background: rgba(255,255,255,0.9);
+            padding: 8px 15px;
+            border-radius: 20px;
+            display: inline-block;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        /* 主UI面板容器 */
+        #ui-container {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            align-items: center;
+            z-index: 10;
+            width: 90%;
+            max-width: 800px;
+        }
+
+        /* 通用面板样式 */
+        .panel {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 10px 20px;
+            border-radius: 50px;
+            display: flex;
+            gap: 12px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.15);
+            align-items: center;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        /* 形状选择按钮 */
+        .shape-btn {
+            width: 45px;
+            height: 45px;
+            border-radius: 12px;
+            border: 2px solid transparent;
+            background: #f5f5f5;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            transition: all 0.2s;
+        }
+
+        .shape-btn:hover {
+            background: #e0e0e0;
+        }
+
+        .shape-btn.active {
+            background: #e3f2fd;
+            border-color: #2196f3;
+            color: #2196f3;
+            transform: translateY(-3px);
+            box-shadow: 0 4px 8px rgba(33, 150, 243, 0.3);
+        }
+
+        /* 颜色按钮 */
+        .color-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 3px solid #fff;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            position: relative;
+        }
+
+        .color-btn:hover {
+            transform: scale(1.1);
+        }
+
+        .color-btn.active {
+            border-color: #333;
+            transform: scale(1.15) translateY(-3px);
+            box-shadow: 0 5px 10px rgba(0,0,0,0.3);
+        }
+
+        .color-btn.active::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 8px;
+            height: 4px;
+            border-left: 2px solid #333;
+            border-bottom: 2px solid #333;
+            transform: translate(-50%, -65%) rotate(-45deg);
+        }
+
+        /* 功能按钮 */
+        .action-btn {
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 20px;
+            padding: 8px 16px;
+            font-size: 14px;
+            cursor: pointer;
+            font-weight: bold;
+            color: #555;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: all 0.2s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .action-btn:hover {
+            background-color: #f5f5f5;
+            transform: translateY(-2px);
+        }
+
+        .action-btn:active {
+            transform: translateY(0);
+        }
+
+        .action-btn.delete-mode {
+            background-color: #ffebee;
+            color: #c62828;
+            border-color: #ffcdd2;
+        }
+        
+        .action-btn.delete-mode.active {
+            background-color: #ef5350;
+            color: white;
+            border-color: #d32f2f;
+        }
+
+        /* 分隔线 */
+        .divider {
+            width: 1px;
+            height: 25px;
+            background: #ddd;
+            margin: 0 5px;
+        }
+        
+        /* 自定义确认弹窗 */
+        #confirm-modal {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5);
+            display: none; /* 默认隐藏 */
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            backdrop-filter: blur(2px);
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.3);
+            max-width: 300px;
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes popIn {
+            from { transform: scale(0.5); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 20px;
+        }
+
+        .modal-btn {
+            padding: 10px 25px;
+            border-radius: 10px;
+            border: none;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .btn-confirm { background: #ff5252; color: white; }
+        .btn-cancel { background: #eee; color: #333; }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            color: #555;
+            font-weight: bold;
+            background: rgba(255,255,255,0.9);
+            padding: 20px;
+            border-radius: 10px;
+            z-index: 100;
+            pointer-events: none;
+            transition: opacity 0.5s;
+        }
+    </style>
+    <!-- 引入 Three.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- 引入 OrbitControls -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+</head>
+<body>
+
+    <div id="loading">正在搬运积木...</div>
+
+    <div id="header">
+        <h1>🏗️ 小小建筑师</h1>
+        <p>👇 点击放置 | 🔄 旋转积木 | 🖐️ 拖动视角</p>
+    </div>
+
+    <!-- 自定义确认弹窗 -->
+    <div id="confirm-modal">
+        <div class="modal-content">
+            <h2 style="margin-top:0; color:#333;">💥 真的要炸掉重建吗？</h2>
+            <p style="color:#666;">所有的积木都会消失哦！</p>
+            <div class="modal-buttons">
+                <button class="modal-btn btn-cancel" onclick="closeModal()">不炸了</button>
+                <button class="modal-btn btn-confirm" onclick="confirmClear()">是的，炸掉！</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <div id="ui-container">
+        <!-- 第一排：形状和操作 -->
+        <div class="panel">
+            <div class="shape-btn active" onclick="setShape('cube')" title="正方体">📦</div>
+            <div class="shape-btn" onclick="setShape('cylinder')" title="圆柱体">🛢️</div>
+            <div class="shape-btn" onclick="setShape('pyramid3')" title="三棱锥">🔺</div>
+            <div class="shape-btn" onclick="setShape('pyramid4')" title="四棱锥">⛺</div>
+            <div class="shape-btn" onclick="setShape('sector')" title="扇形">🍕</div>
+            
+            <div class="divider"></div>
+
+            <button class="action-btn" onclick="rotateBlock()">
+                🔄 旋转
+            </button>
+            
+            <button id="eraser-btn" class="action-btn delete-mode" onclick="toggleEraser()">
+                🗑️ 拆除
+            </button>
+            
+            <button class="action-btn" onclick="showClearModal()">
+                💥 重来
+            </button>
+        </div>
+
+        <!-- 第二排：颜色 -->
+        <div class="panel" style="padding: 8px 15px;">
+            <div class="color-btn active" style="background-color: #FF3B30;" data-color="#FF3B30" onclick="selectColor(this)"></div>
+            <div class="color-btn" style="background-color: #FF9500;" data-color="#FF9500" onclick="selectColor(this)"></div>
+            <div class="color-btn" style="background-color: #FFCC00;" data-color="#FFCC00" onclick="selectColor(this)"></div>
+            <div class="color-btn" style="background-color: #4CD964;" data-color="#4CD964" onclick="selectColor(this)"></div>
+            <div class="color-btn" style="background-color: #5AC8FA;" data-color="#5AC8FA" onclick="selectColor(this)"></div>
+            <div class="color-btn" style="background-color: #007AFF;" data-color="#007AFF" onclick="selectColor(this)"></div>
+            <div class="color-btn" style="background-color: #5856D6;" data-color="#5856D6" onclick="selectColor(this)"></div>
+            <div class="color-btn" style="background-color: #AF52DE;" data-color="#AF52DE" onclick="selectColor(this)"></div>
+            <div class="color-btn" style="background-color: #EFEFF4;" data-color="#EFEFF4" onclick="selectColor(this)"></div>
+        </div>
+    </div>
+
+    <script>
+        let camera, scene, renderer;
+        let plane;
+        let pointer, raycaster;
+        let rollOverMesh, rollOverMaterial;
+        let selectionBox; // 磁吸效果框
+        let objects = []; 
+        let blocks = []; 
+        
+        // 游戏状态
+        let currentColor = 0xFF3B30;
+        let isEraserMode = false;
+        let isDragging = false;
+        let dragStartTime = 0;
+        let currentRotationY = 0; // 当前积木旋转角度
+        let currentShape = 'cube';
+
+        // 几何体缓存
+        const geometries = {};
+
+        init();
+        animate();
+
+        function init() {
+            // 1. 场景
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xe0f7fa);
+            scene.fog = new THREE.Fog(0xe0f7fa, 500, 2000);
+
+            // 2. 相机
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 1, 10000);
+            camera.position.set(500, 600, 1000); 
+            camera.lookAt(0, 0, 0);
+
+            // 3. 初始化几何体
+            initGeometries();
+
+            // 4. 虚影方块 (半透明)
+            rollOverMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000, opacity: 0.5, transparent: true });
+            rollOverMesh = new THREE.Mesh(geometries['cube'], rollOverMaterial);
+            scene.add(rollOverMesh);
+
+            // 5. 磁吸效果框 (金色线框)
+            const boxGeo = new THREE.BoxGeometry(52, 52, 52); // 比格子稍微大一点点
+            const boxMat = new THREE.MeshBasicMaterial({ color: 0xffd700, wireframe: true, transparent: true, opacity: 0.8 });
+            selectionBox = new THREE.Mesh(boxGeo, boxMat);
+            selectionBox.visible = false;
+            scene.add(selectionBox);
+
+            // 6. 地板网格
+            const gridHelper = new THREE.GridHelper(1000, 20, 0x546e7a, 0xcfd8dc);
+            scene.add(gridHelper);
+
+            // 7. 交互平面
+            const geometry = new THREE.PlaneGeometry(1000, 1000);
+            geometry.rotateX(-Math.PI / 2);
+            plane = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ visible: false }));
+            scene.add(plane);
+            objects.push(plane);
+
+            // 8. 灯光
+            const ambientLight = new THREE.AmbientLight(0x888888);
+            scene.add(ambientLight);
+
+            const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
+            dirLight.position.set(200, 500, 300);
+            dirLight.castShadow = true;
+            dirLight.shadow.mapSize.width = 1024;
+            dirLight.shadow.mapSize.height = 1024;
+            scene.add(dirLight);
+
+            const dirLight2 = new THREE.DirectionalLight(0xffeedd, 0.5);
+            dirLight2.position.set(-200, 500, -300);
+            scene.add(dirLight2);
+
+            // 9. 渲染器
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+            // 10. 控制器
+            const controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.maxPolarAngle = Math.PI / 2 - 0.05; 
+            controls.minDistance = 200;
+            controls.maxDistance = 2000;
+            
+            // 11. 事件
+            raycaster = new THREE.Raycaster();
+            pointer = new THREE.Vector2();
+
+            document.addEventListener('pointermove', onPointerMove);
+            document.addEventListener('pointerdown', onPointerDown);
+            document.addEventListener('pointerup', onPointerUp);
+            window.addEventListener('resize', onWindowResize);
+
+            // 12. 预设场景
+            buildStarterScene();
+
+            // 隐藏Loading
+            setTimeout(() => {
+                const loading = document.getElementById('loading');
+                if(loading) loading.style.opacity = 0;
+            }, 500);
+        }
+
+        function initGeometries() {
+            // 正方体 50x50x50
+            geometries['cube'] = new THREE.BoxGeometry(50, 50, 50);
+            
+            // 圆柱体 (半径25, 高度50)
+            geometries['cylinder'] = new THREE.CylinderGeometry(25, 25, 50, 32);
+            
+            // 三棱锥 (底面三角形，调整大小以匹配)
+            // 边长50的等边三角形，外接圆半径 R = 50 / sqrt(3) ≈ 28.86
+            geometries['pyramid3'] = new THREE.CylinderGeometry(0, 29, 50, 3, 1);
+            
+            // 四棱锥 (底面正方形，调整旋转和大小以匹配正方体)
+            // 我们希望底面是正方形，边长50。
+            // CylinderGeometry 4边形生成的底是菱形。需要旋转45度 (PI/4)。
+            // 对角线长度 = sqrt(50^2 + 50^2) ≈ 70.71。半径 = 35.355
+            geometries['pyramid4'] = new THREE.CylinderGeometry(0, 35.36, 50, 4, 1);
+            geometries['pyramid4'].rotateY(Math.PI / 4); // 旋转45度使其边对齐轴线
+
+            // 扇形 (四分之一圆柱 - 实心)
+            const shape = new THREE.Shape();
+            shape.moveTo(0,0);
+            shape.lineTo(50, 0); // X轴边
+            shape.absarc(0,0, 50, 0, Math.PI/2, false); // 0到90度弧
+            shape.lineTo(0,0); // 回到圆心闭合
+
+            const extrudeSettings = {
+                steps: 1,
+                depth: 50, // 挤压高度 (这将成为Y轴高度)
+                bevelEnabled: false,
+                curveSegments: 32
+            };
+            
+            const sectorGeo = new THREE.ExtrudeGeometry(shape, extrudeSettings);
+            
+            // 调整旋转和位置，使其直立并居中
+            // 1. 绕X轴旋转-90度，让原本向Z轴挤压的高度变成向Y轴挤压（直立）
+            sectorGeo.rotateX(-Math.PI / 2);
+            
+            // 2. 居中处理
+            // 旋转后的包围盒范围是: X[0, 50], Y[0, 50], Z[-50, 0]
+            // 我们需要将其移动到: X[-25, 25], Y[-25, 25], Z[-25, 25]
+            sectorGeo.translate(-25, -25, 25);
+            
+            geometries['sector'] = sectorGeo;
+        }
+
+        function buildStarterScene() {
+            createBlock(0, 25, 0, 0xFF3B30, 'cube');
+            createBlock(50, 25, 0, 0xFFCC00, 'pyramid4'); // 测试四棱锥贴合
+            
+            rollOverMesh.position.set(0, 75, 0);
+        }
+
+        function createBlock(x, y, z, color, shapeType, rotationY = 0) {
+            const material = new THREE.MeshPhongMaterial({ 
+                color: color,
+                specular: 0x111111,
+                shininess: 30,
+                flatShading: shapeType && shapeType.includes('pyramid') // 棱锥用平面着色好看点
+            });
+            
+            const geometry = geometries[shapeType] || geometries['cube'];
+            const voxel = new THREE.Mesh(geometry, material);
+            
+            voxel.position.set(x, y, z);
+            voxel.rotation.y = rotationY;
+            
+            voxel.castShadow = true;
+            voxel.receiveShadow = true;
+            
+            // 存储额外数据
+            voxel.userData = { isBlock: true };
+
+            scene.add(voxel);
+            objects.push(voxel);
+            blocks.push(voxel);
+            return voxel;
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function onPointerMove(event) {
+            pointer.set((event.clientX / window.innerWidth) * 2 - 1, -(event.clientY / window.innerHeight) * 2 + 1);
+            
+            raycaster.setFromCamera(pointer, camera);
+            const intersects = raycaster.intersectObjects(objects);
+
+            if (intersects.length > 0) {
+                const intersect = intersects[0];
+                
+                // 计算吸附位置
+                const pos = new THREE.Vector3().copy(intersect.point).add(intersect.face.normal);
+                pos.divideScalar(50).floor().multiplyScalar(50).addScalar(25);
+
+                rollOverMesh.position.copy(pos);
+                
+                // 更新磁吸框位置
+                selectionBox.position.copy(pos);
+                selectionBox.visible = true;
+
+                if (isEraserMode) {
+                    selectionBox.material.color.setHex(0xff0000); // 红色框
+                    if (intersect.object !== plane) {
+                        rollOverMesh.geometry = intersect.object.geometry;
+                        rollOverMesh.position.copy(intersect.object.position);
+                        rollOverMesh.rotation.copy(intersect.object.rotation);
+                        
+                        rollOverMaterial.color.setHex(0xff0000);
+                        document.body.style.cursor = "not-allowed";
+                    } else {
+                         rollOverMesh.visible = false; // 对着地板时不显示删除虚影
+                         document.body.style.cursor = "default";
+                    }
+                } else {
+                    selectionBox.material.color.setHex(0xffd700); // 金色框
+                    rollOverMesh.visible = true;
+                    // 确保虚影也是当前选择的形状和旋转
+                    if (rollOverMesh.geometry !== geometries[currentShape]) {
+                        rollOverMesh.geometry = geometries[currentShape];
+                    }
+                    rollOverMesh.rotation.y = currentRotationY;
+
+                    rollOverMaterial.color.setHex(currentColor);
+                    document.body.style.cursor = "crosshair";
+                }
+            } else {
+                selectionBox.visible = false;
+            }
+        }
+
+        let startX = 0;
+        let startY = 0;
+
+        function onPointerDown(event) {
+            startX = event.clientX;
+            startY = event.clientY;
+        }
+
+        function onPointerUp(event) {
+            // 防止穿透UI
+            if (event.target.closest('#ui-container') || event.target.closest('#confirm-modal')) return;
+
+            const dx = event.clientX - startX;
+            const dy = event.clientY - startY;
+            if (Math.abs(dx) > 5 || Math.abs(dy) > 5) return; 
+
+            pointer.set((event.clientX / window.innerWidth) * 2 - 1, -(event.clientY / window.innerHeight) * 2 + 1);
+            raycaster.setFromCamera(pointer, camera);
+            const intersects = raycaster.intersectObjects(objects);
+
+            if (intersects.length > 0) {
+                const intersect = intersects[0];
+
+                if (isEraserMode) {
+                    if (intersect.object !== plane) {
+                        deleteBlock(intersect.object);
+                    }
+                } else {
+                    placeBlock(intersect);
+                }
+            }
+        }
+
+        function placeBlock(intersect) {
+            playSound('place');
+            
+            // 计算位置
+            const pos = new THREE.Vector3().copy(intersect.point).add(intersect.face.normal);
+            pos.divideScalar(50).floor().multiplyScalar(50).addScalar(25);
+            
+            if(pos.y < 0) return;
+            
+            const exists = blocks.some(b => b.position.distanceTo(pos) < 1);
+            if(exists) return;
+
+            const voxel = createBlock(pos.x, pos.y, pos.z, currentColor, currentShape, currentRotationY);
+
+            // 弹跳动画
+            voxel.scale.set(0.1, 0.1, 0.1);
+            let scale = 0.1;
+            const grow = setInterval(() => {
+                scale += 0.2;
+                voxel.scale.set(scale, scale, scale);
+                if(scale >= 1) {
+                    voxel.scale.set(1, 1, 1);
+                    clearInterval(grow);
+                }
+            }, 16);
+        }
+
+        function deleteBlock(object) {
+            scene.remove(object);
+            objects.splice(objects.indexOf(object), 1);
+            blocks.splice(blocks.indexOf(object), 1);
+            playSound('delete');
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            // 让磁吸框微微闪烁
+            if(selectionBox.visible) {
+                selectionBox.material.opacity = 0.5 + Math.sin(Date.now() * 0.005) * 0.3;
+            }
+            renderer.render(scene, camera);
+        }
+
+        // --- UI 逻辑 ---
+
+        function setShape(shape) {
+            if (isEraserMode) toggleEraser(); 
+            currentShape = shape;
+            
+            document.querySelectorAll('.shape-btn').forEach(btn => btn.classList.remove('active'));
+            // 简单匹配 active
+            if(shape === 'cube') document.querySelector('[title="正方体"]').classList.add('active');
+            if(shape === 'cylinder') document.querySelector('[title="圆柱体"]').classList.add('active');
+            if(shape === 'pyramid3') document.querySelector('[title="三棱锥"]').classList.add('active');
+            if(shape === 'pyramid4') document.querySelector('[title="四棱锥"]').classList.add('active');
+            if(shape === 'sector') document.querySelector('[title="扇形"]').classList.add('active');
+
+            rollOverMesh.geometry = geometries[shape];
+        }
+
+        function rotateBlock() {
+            currentRotationY += Math.PI / 2;
+            rollOverMesh.rotation.y = currentRotationY;
+            playSound('rotate');
+        }
+
+        function selectColor(element) {
+            if (isEraserMode) toggleEraser();
+
+            document.querySelectorAll('.color-btn').forEach(btn => btn.classList.remove('active'));
+            element.classList.add('active');
+            
+            const colorHex = element.getAttribute('data-color');
+            currentColor = new THREE.Color(colorHex).getHex();
+            rollOverMaterial.color.setHex(currentColor);
+        }
+
+        function toggleEraser() {
+            const btn = document.getElementById('eraser-btn');
+            isEraserMode = !isEraserMode;
+            
+            if (isEraserMode) {
+                btn.classList.add('active');
+                document.body.style.cursor = "not-allowed";
+                rollOverMaterial.color.setHex(0xff0000);
+            } else {
+                btn.classList.remove('active');
+                document.body.style.cursor = "default";
+                rollOverMesh.geometry = geometries[currentShape];
+                rollOverMaterial.color.setHex(currentColor);
+                rollOverMesh.visible = true;
+            }
+        }
+
+        // --- 弹窗逻辑 ---
+        function showClearModal() {
+            document.getElementById('confirm-modal').style.display = 'flex';
+        }
+
+        function closeModal() {
+            document.getElementById('confirm-modal').style.display = 'none';
+        }
+
+        function confirmClear() {
+            closeModal();
+            // 清理逻辑
+            for (let i = blocks.length - 1; i >= 0; i--) {
+                scene.remove(blocks[i]);
+            }
+            blocks = [];
+            objects = [plane]; // 必须保留地板！
+            
+            // 重新添加地板到 objects 数组（虽然上面行已经保留了，但为了保险起见）
+            // 注意：上面的 objects = [plane] 是正确的，因为 plane 是全局变量。
+            
+            playSound('delete');
+        }
+
+        // --- 音效系统 ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+
+            const oscillator = audioCtx.createOscillator();
+            const gainNode = audioCtx.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioCtx.destination);
+
+            if (type === 'place') {
+                oscillator.type = 'sine';
+                oscillator.frequency.setValueAtTime(400, audioCtx.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(800, audioCtx.currentTime + 0.1);
+                gainNode.gain.setValueAtTime(0.3, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.1);
+            } else if (type === 'delete') {
+                oscillator.type = 'square';
+                oscillator.frequency.setValueAtTime(150, audioCtx.currentTime);
+                oscillator.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.15);
+                gainNode.gain.setValueAtTime(0.2, audioCtx.currentTime);
+                gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.15);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.15);
+            } else if (type === 'rotate') {
+                oscillator.type = 'triangle';
+                oscillator.frequency.setValueAtTime(300, audioCtx.currentTime);
+                oscillator.frequency.linearRampToValueAtTime(500, audioCtx.currentTime + 0.1);
+                gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                gainNode.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.1);
+                oscillator.start();
+                oscillator.stop(audioCtx.currentTime + 0.1);
+            }
+        }
+    </script>
+</body>
+</html>
